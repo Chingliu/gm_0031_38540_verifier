@@ -6,6 +6,7 @@
 #include <openssl/err.h>
 #include "38540.h"  // 包含上述定义的所有结构体和 ASN1 序列声明
 
+#include "sm2sign.h"
 // 函数声明
 int decode_signature(const unsigned char *data, long data_len);
 
@@ -44,39 +45,34 @@ int main() {
     printf("Failed to decode signature\n");
     return -1;
   }
+  EVP_PKEY *pkey = NULL;
+  X509 *cert = NULL;
+  int iret = load_pfx_file("d:\\sm2_test.pfx", "123456", &pkey, &cert);
 
+  sm2PrivateKey sign(pkey);
+  std::string msg = "hello openssl";
+    std::string err;
+  auto signed_msg = sign.Signature(msg, err);
+  sm2PublicKey verify = sign.CreatePublic();
+
+  verify.SignatureVerification(signed_msg, msg, err);
+  printf("verfied message: %s", msg.c_str());
   return 0;
 }
 
 
 int decode_signature(const unsigned char *data, long data_len) {
-  const unsigned char *p = data;
 
-
-  SESv4_Signature * v4sign = NULL;
-  SESv2_Signature * sign = d2i_SESv2_Signature(NULL, &p, data_len);
-  if (!sign){
-    unsigned long err = ERR_get_error();
-    char err_msg[256];
-    ERR_error_string_n(err, err_msg, sizeof(err_msg));
-    printf(err_msg);
-    p = data;
-    v4sign = d2i_SESv4_Signature(NULL, &p, data_len);
-    if (!v4sign)
-    {
-      err = ERR_get_error();
-      ERR_error_string_n(err, err_msg, sizeof(err_msg));
-      printf(err_msg);
-    }
+  gm::C0031 v2sign(data, data_len);
+  if (v2sign.data_parsed()) {
+    printf("it is 0031 sign");
   }
-
-
-  if(sign){
-    SESv2_Signature_free(sign);
-  }
-  if (v4sign)
+  gm::C38540 v4sign(data, data_len);
+  if (v4sign.data_parsed())
   {
-    SESv4_Signature_free(v4sign);
+    printf("it is 38540 sign");
   }
+
+
   return 0;
 }

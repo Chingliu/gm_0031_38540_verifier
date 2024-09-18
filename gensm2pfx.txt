@@ -1,0 +1,7 @@
+//生成一个 SM2 私钥
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:sm2 -out sm2_private_key.pem
+
+//生成自签名证书
+openssl req -new -x509 -key sm2_private_key.pem -out sm2_cert.pem -days 365 -sm3
+//生成 .pfx 文件
+openssl pkcs12 -export -inkey sm2_private_key.pem -in sm2_cert.pem -out sm2_test.pfx

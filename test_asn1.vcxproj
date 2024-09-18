@@ -155,10 +155,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="38540.cpp" />
+    <ClCompile Include="sm2sign.cpp" />
     <ClCompile Include="test_asn1.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="38540.h" />
+    <ClInclude Include="sm2sign.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

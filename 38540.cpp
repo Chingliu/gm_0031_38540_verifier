@@ -125,3 +125,55 @@ ASN1_SEQUENCE(SESv4_Signature)  {
     ASN1_OPT(SESv4_Signature, timestamp, ASN1_BIT_STRING)
 } ASN1_SEQUENCE_END(SESv4_Signature)
 IMPLEMENT_ASN1_FUNCTIONS(SESv4_Signature)
+
+namespace gm {
+
+      void v4deleter(SESv4_Signature* ptr) {
+        if (ptr)SESv4_Signature_free(ptr);
+      }
+      void v2deleter(SESv2_Signature* ptr) {
+        if (ptr)SESv2_Signature_free(ptr);
+      }
+
+      C38540::C38540(const unsigned char *data, long len):m_psign(d2i_SESv4_Signature(NULL, &data, len), &v4deleter){
+
+      }
+      C38540::~C38540() {
+
+      }
+
+      int C38540::sign_verify(void *sign_handler, unsigned char * digest, long digest_len) {
+        return 0;
+      }
+      int C38540::sign_get_cert() {
+        return 0;
+      }
+      int C38540::sign_get_picture() {
+        return 0;
+      }
+      int C38540::sign_get_seal_name() {
+        return 0;
+      }
+
+
+
+      C0031::C0031(const unsigned char *data, long len) :m_psign(d2i_SESv2_Signature(NULL, &data, len), &v2deleter) {
+
+      }
+      C0031::~C0031() {
+
+      }
+
+      int C0031::sign_verify(void *sign_handler, unsigned char * digest, long digest_len) {
+        return 0;
+      }
+      int C0031::sign_get_cert() {
+        return 0;
+      }
+      int C0031::sign_get_picture() {
+        return 0;
+      }
+      int C0031::sign_get_seal_name() {
+        return 0;
+      }
+}

@@ -1,4 +1,5 @@
-﻿#include "openssl\asn1.h"
+﻿#include <memory>
+#include "openssl\asn1.h"
 #include "openssl\asn1t.h"
 #include "openssl\x509.h"
 typedef struct CertDigestObj_t {
@@ -121,3 +122,75 @@ typedef struct SESv4_Signature_t {
     ASN1_BIT_STRING *timestamp;
 }SESv4_Signature;
 DECLARE_ASN1_FUNCTIONS(SESv4_Signature);
+
+class CGMVerifier_if {
+public:
+  CGMVerifier_if(const CGMVerifier_if&) = delete;
+  CGMVerifier_if(CGMVerifier_if&&) = delete;
+  CGMVerifier_if& operator=(const CGMVerifier_if&) = delete;
+  CGMVerifier_if& operator=(CGMVerifier_if&&) = delete;
+  virtual ~CGMVerifier_if() = default;
+  CGMVerifier_if() = default;
+public:
+  virtual bool data_parsed() = 0;
+  virtual int sign_verify(void *sign_handler, unsigned char * digest, long digest_len) = 0;
+  virtual int sign_get_cert() = 0;
+  virtual int sign_get_picture() = 0;
+  virtual int sign_get_seal_name() = 0;/*sign_get_seal_*  */
+};
+namespace gm {
+  void v4deleter(SESv4_Signature* ptr);
+  void v2deleter(SESv2_Signature* ptr);
+
+  class C38540:public CGMVerifier_if {
+  public:
+    C38540(const C38540&) = delete;
+    C38540(C38540&&) = delete;
+    C38540& operator=(const C38540&) = delete;
+    C38540& operator=(C38540&&) = delete;
+  public:
+    C38540(const unsigned char *data, long len);
+    virtual ~C38540();
+  public:
+    virtual bool data_parsed() final{
+      if (m_psign)
+      {
+        return true;
+      }
+      return false;
+    }
+    virtual int sign_verify(void *sign_handler, unsigned char * digest, long digest_len) final;
+    virtual int sign_get_cert() final;
+    virtual int sign_get_picture() final;
+    virtual int sign_get_seal_name() final;
+  private:
+    std::unique_ptr<SESv4_Signature, decltype(&v4deleter)> m_psign;
+
+  };
+
+  class C0031 :public CGMVerifier_if {
+  public:
+    C0031(const C0031&) = delete;
+    C0031(C0031&&) = delete;
+    C0031& operator=(const C0031&) = delete;
+    C0031& operator=(C0031&&) = delete;
+  public:
+    C0031(const unsigned char *data, long len);
+    virtual ~C0031();
+  public:
+    virtual bool data_parsed() final {
+      if (m_psign)
+      {
+        return true;
+      }
+      return false;
+    }
+    virtual int sign_verify(void *sign_handler, unsigned char * digest, long digest_len) final;
+    virtual int sign_get_cert() final;
+    virtual int sign_get_picture() final;
+    virtual int sign_get_seal_name() final;
+  private:
+    std::unique_ptr<SESv2_Signature, decltype(&v2deleter)> m_psign;
+
+  };
+}
