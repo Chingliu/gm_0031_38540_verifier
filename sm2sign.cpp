@@ -2,6 +2,7 @@
 #include "sm2sign.h"
 #include <stdio.h>
 #include <openssl/applink.c>
+#include <openssl/sm3.h>
 // 读取 .pfx 文件并提取 EVP_PKEY 和 X509 证书
 int load_pfx_file(const char *filename, const char *password, EVP_PKEY **pkey, X509 **cert) {
   FILE *fp = fopen(filename, "rb");
@@ -260,6 +261,44 @@ std::vector<unsigned char> sm2PrivateKey::Signature(const std::string & message,
   return outbuf;
 }
 
+std::vector<unsigned char> sm2PrivateKey::PkeySign(unsigned char hash[32]) {
+  std::vector<unsigned char> outbuf;
+  EVP_PKEY_CTX *ctx = nullptr;
+  do {
+    // 5. 准备签名上下文，使用SM2签名
+    ctx = EVP_PKEY_CTX_new(M_PKEY.get()->pkey, NULL);
+    if (!ctx) {
+      m_error = ERR_get_error();
+      break;
+    }
+    // 6. 初始化签名操作
+    if (EVP_PKEY_sign_init(ctx) <= 0) {
+      m_error = ERR_get_error();
+      break;
+    }
+
+    // 7. 确保使用SM2算法
+    if (EVP_PKEY_CTX_set_signature_md(ctx, EVP_sm3()) <= 0) {
+      m_error = ERR_get_error();
+      break;
+    }
+
+    // 8. 确定签名的大小
+    size_t sig_len = 0;
+    if (EVP_PKEY_sign(ctx, NULL, &sig_len, hash, SM3_DIGEST_LENGTH) <= 0) {
+      m_error = ERR_get_error();
+      break;
+    }
+    outbuf.resize(sig_len);
+    // 10. 生成签名
+    if (EVP_PKEY_sign(ctx, &outbuf[0], &sig_len, hash, SM3_DIGEST_LENGTH) <= 0) {
+      m_error = ERR_get_error();
+      break;
+    }
+  } while (0);
+  if(ctx)EVP_PKEY_CTX_free(ctx);
+  return outbuf;
+}
 
 //公钥验签
 
@@ -297,4 +336,101 @@ bool sm2PublicKey::SignatureVerification(const std::vector<unsigned char> &signa
   }
   EVP_MD_CTX_free(mdctx);
   return true;
+}
+
+int sm2PublicKey::PkeyVerification(const std::vector<unsigned char> & signature, unsigned char hash[32]) {
+  EVP_PKEY_CTX *ctx;
+  int iret;
+  std::string error;
+  do 
+  {
+
+    // 5. 创建EVP_PKEY_CTX上下文并初始化
+    ctx = EVP_PKEY_CTX_new(m_pkey.get()->pkey, NULL);
+    if (!ctx) {
+      error = GetErrorStr();
+      errorL("EVP_MD_CTX_create:" << error);
+    }
+
+    if (EVP_PKEY_verify_init(ctx) <= 0) {
+      error = GetErrorStr();
+      errorL("EVP_MD_CTX_create:" << error);
+    }
+
+    // 设置 SM2 ID，签名和验证时需要一致
+    const unsigned char *id = (const unsigned char *)"1234567812345678";
+    size_t id_len = strlen((const char *)id);
+    if (EVP_PKEY_CTX_set1_id(ctx, id, id_len) <= 0) {
+      error = GetErrorStr();
+      errorL("EVP_MD_CTX_create:" << error);
+    }
+
+    // 6. 使用EVP_PKEY_verify验证摘要签名
+    iret = EVP_PKEY_verify(ctx, &signature[0], signature.size(), hash, 32);
+    if (iret <= 0)
+    {
+      error = GetErrorStr();
+      errorL("EVP_MD_CTX_create:" << error);
+    }
+  } while (0);
+  EVP_PKEY_CTX_free(ctx);
+  return iret;
+}
+
+CDigest::CDigest(std::string digest_name) :mdctx(nullptr), m_error(0) {
+  const EVP_MD *md;
+  md = EVP_get_digestbyname(digest_name.c_str());
+  if (!md)
+  {
+    m_error = ERR_get_error();
+    return;
+  }
+  mdctx = EVP_MD_CTX_new();
+  if (!mdctx)
+  {
+    m_error = ERR_get_error();
+    return;
+  }
+  if (!EVP_DigestInit_ex2(mdctx, md, NULL)) {
+    m_error = ERR_get_error();
+    EVP_MD_CTX_free(mdctx);
+    mdctx = nullptr;
+  }
+}
+CDigest::~CDigest() {
+  if (mdctx)
+  {
+    EVP_MD_CTX_free(mdctx);
+  }
+}
+unsigned long CDigest::digest_update(const unsigned char * data, size_t len) {
+  if (!mdctx)
+  {
+    return m_error;
+  }
+  if (!EVP_DigestUpdate(mdctx, reinterpret_cast<const void *>(data), len)) {
+    return m_error = ERR_get_error();
+  }
+  return 0;
+}
+
+unsigned long CDigest::get_digest(unsigned char *md_value) {
+  if (!mdctx)
+  {
+    return m_error;
+  }
+  if (!EVP_DigestFinal_ex(mdctx, md_value, NULL)) {
+    return m_error = ERR_get_error();
+  }
+  return 0;
+}
+
+CGuardOpenssl::CGuardOpenssl() {
+  OpenSSL_add_all_algorithms();
+  ERR_load_crypto_strings();
+}
+
+CGuardOpenssl::~CGuardOpenssl() {
+  EVP_cleanup();
+  ERR_free_strings();
 }

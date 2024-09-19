@@ -42,6 +42,8 @@ public:
 
   bool SignatureVerification(const std::vector<unsigned char> & signature, const std::string & message, std::string & error);
 
+  int PkeyVerification(const std::vector<unsigned char> & signature, unsigned char hash[32]);
+
 
   //std::string GetPublicString();
 
@@ -64,11 +66,11 @@ public:
   std::string Decrypt(const std::string & encoded, std::string & error);
 
   std::vector<unsigned char> Signature(const std::string & message, std::string & error);
-
+  std::vector<unsigned char> PkeySign(unsigned char hash[32]);
   //std::string GetPrivateString();
 
 private:
-
+  unsigned long m_error = 0;
   std::shared_ptr<EVP_CUNSTOM>  M_PKEY = nullptr;
 };
 
@@ -96,3 +98,26 @@ static inline std::string GetErrorStr() {
   ERR_error_string_n(er, erbuf, erlen);
   return std::string(erbuf, erlen);
 }
+
+class CDigest {
+public:
+  CDigest(const CDigest&) = delete;
+  CDigest(CDigest&&) = delete;
+  CDigest& operator=(const CDigest&) = delete;
+  CDigest& operator=(CDigest&&) = delete;
+public:
+  CDigest(std::string digest_name);
+  ~CDigest();
+public:
+  unsigned long digest_update(const unsigned char * data, size_t len);
+  unsigned long get_digest(unsigned char *md_value);
+private:
+  EVP_MD_CTX *mdctx;
+  unsigned long m_error;
+};
+
+class CGuardOpenssl {
+public:
+  CGuardOpenssl();
+  ~CGuardOpenssl();
+};

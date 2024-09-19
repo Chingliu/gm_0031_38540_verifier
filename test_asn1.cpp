@@ -9,21 +9,10 @@
 #include "sm2sign.h"
 // 函数声明
 int decode_signature(const unsigned char *data, long data_len);
-
+int sm3_sm2();
+void digestsign();
 int main() {
-#if 0
-  /* SSL 库初始化*/
-  SSL_library_init();
-  /* 载入所有SSL 算法*/
-  OpenSSL_add_all_algorithms();
-  /* 载入所有SSL 错误消息*/
-  SSL_load_error_strings();
-  // 初始化 OpenSSL 加密库
-  if (!OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS | OPENSSL_INIT_LOAD_CONFIG, NULL)) {
-    fprintf(stderr, "Failed to initialize OpenSSL\n");
-    return 1;
-  }
-#endif
+  CGuardOpenssl openssl_resource_guard;
 
   unsigned char *binary_data = NULL;  // 从文件或其他来源获取的二进制数据
   long binary_data_len = 0;        // 二进制数据的长度
@@ -39,27 +28,46 @@ int main() {
     }
 
   }
+#if 0
   // 调用解析函数
   int result = decode_signature(binary_data, binary_data_len);
   if (result < 0) {
     printf("Failed to decode signature\n");
     return -1;
   }
+#endif
+  CDigest sm3("sm3");
+  std::string msg("hello sm3");
+  sm3.digest_update((const unsigned char *)msg.c_str(), msg.length());
+  unsigned char msg_digest[32];
+  if (!sm3.get_digest(msg_digest)) {
+    EVP_PKEY *pkey = NULL;
+    X509 *cert = NULL;
+    std::string err;
+    int iret = load_pfx_file("d:\\sm2_test.pfx", "123456", &pkey, &cert);
+    sm2PrivateKey sign(pkey);
+    auto signed_msg = sign.PkeySign(msg_digest);
+    sm2PublicKey verify = sign.CreatePublic();
+    //verify.SignatureVerification(signed_msg, msg, err);
+    verify.PkeyVerification(signed_msg, msg_digest);
+    printf("verfied message: %s", err.c_str());
+  }
+  return 0;
+}
+void digestsign() {
   EVP_PKEY *pkey = NULL;
   X509 *cert = NULL;
   int iret = load_pfx_file("d:\\sm2_test.pfx", "123456", &pkey, &cert);
 
   sm2PrivateKey sign(pkey);
   std::string msg = "hello openssl";
-    std::string err;
+  std::string err;
   auto signed_msg = sign.Signature(msg, err);
   sm2PublicKey verify = sign.CreatePublic();
 
   verify.SignatureVerification(signed_msg, msg, err);
   printf("verfied message: %s", msg.c_str());
-  return 0;
 }
-
 
 int decode_signature(const unsigned char *data, long data_len) {
 
