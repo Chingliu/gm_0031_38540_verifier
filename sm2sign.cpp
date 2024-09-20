@@ -264,6 +264,7 @@ std::vector<unsigned char> sm2PrivateKey::Signature(const std::string & message,
 std::vector<unsigned char> sm2PrivateKey::PkeySign(unsigned char hash[32]) {
   std::vector<unsigned char> outbuf;
   EVP_PKEY_CTX *ctx = nullptr;
+  int type = NID_sm_scheme;
   do {
     // 5. 准备签名上下文，使用SM2签名
     ctx = EVP_PKEY_CTX_new(M_PKEY.get()->pkey, NULL);
@@ -271,12 +272,14 @@ std::vector<unsigned char> sm2PrivateKey::PkeySign(unsigned char hash[32]) {
       m_error = ERR_get_error();
       break;
     }
+    
     // 6. 初始化签名操作
     if (EVP_PKEY_sign_init(ctx) <= 0) {
       m_error = ERR_get_error();
       break;
     }
-
+    //if (!EVP_PKEY_CTX_set_ec_sign_type(pkctx, type)) {
+    //}
     // 7. 确保使用SM2算法
     if (EVP_PKEY_CTX_set_signature_md(ctx, EVP_sm3()) <= 0) {
       m_error = ERR_get_error();
@@ -351,18 +354,23 @@ int sm2PublicKey::PkeyVerification(const std::vector<unsigned char> & signature,
       error = GetErrorStr();
       errorL("EVP_MD_CTX_create:" << error);
     }
-
-    if (EVP_PKEY_verify_init(ctx) <= 0) {
-      error = GetErrorStr();
-      errorL("EVP_MD_CTX_create:" << error);
-    }
-
     // 设置 SM2 ID，签名和验证时需要一致
+#if 0
     const unsigned char *id = (const unsigned char *)"1234567812345678";
     size_t id_len = strlen((const char *)id);
     if (EVP_PKEY_CTX_set1_id(ctx, id, id_len) <= 0) {
       error = GetErrorStr();
       errorL("EVP_MD_CTX_create:" << error);
+    }
+#endif
+    if (EVP_PKEY_verify_init(ctx) <= 0) {
+      error = GetErrorStr();
+      errorL("EVP_MD_CTX_create:" << error);
+    }
+
+    if (EVP_PKEY_CTX_set_signature_md(ctx, EVP_sm3()) <= 0) {
+      error = GetErrorStr();
+      errorL("EVP_PKEY_CTX_set_signature_md failed:" << error);
     }
 
     // 6. 使用EVP_PKEY_verify验证摘要签名
