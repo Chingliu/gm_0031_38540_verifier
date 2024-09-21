@@ -2,6 +2,8 @@
 #include "openssl\asn1.h"
 #include "openssl\asn1t.h"
 #include "openssl\x509.h"
+#include <openssl\safestack.h>
+DEFINE_STACK_OF(ASN1_OCTET_STRING);
 typedef struct CertDigestObj_t {
     ASN1_PRINTABLESTRING *type;
     ASN1_OCTET_STRING *value;
