@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <memory>
 #include <string>
 #include <vector>
@@ -50,7 +50,7 @@ public:
   //std::string GetPublicStringBase64();
 private:
 
-  std::shared_ptr<EVP_CUNSTOM> m_pkey = nullptr;//Ê¹ÓÃshared_ptr ·ÀÖ¹¿½±´¹¹ÔìµÄÊ±ºòÔì³ÉÄÚ´æĞ¹Â©ºÍÒâÍâÊÍ·Å
+  std::shared_ptr<EVP_CUNSTOM> m_pkey = nullptr;//ä½¿ç”¨shared_ptr é˜²æ­¢æ‹·è´æ„é€ çš„æ—¶å€™é€ æˆå†…å­˜æ³„æ¼å’Œæ„å¤–é‡Šæ”¾
 };
 
 
@@ -65,7 +65,7 @@ public:
 
   std::string Decrypt(const std::string & encoded, std::string & error);
 
-  std::vector<unsigned char> Signature(const std::string & message, std::string & error);
+  std::vector<unsigned char> Signature(const unsigned char * message, size_t msg_len, std::string & error);
   std::vector<unsigned char> PkeySign(unsigned char hash[32]);
   //std::string GetPrivateString();
 

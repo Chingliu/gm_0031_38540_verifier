@@ -171,6 +171,7 @@ int main() {
         return -1;
       }
       
+#if 0 //TODO需要的是sm3withsm2
       CDigest seal_digest("sm3");
       seal_digest.digest_update(seal_info_der, seal_info_len);
       OPENSSL_free(seal_info_der);
@@ -183,6 +184,14 @@ int main() {
       {
         return -1;
       }
+#else
+      std::string errmsg;
+      auto seal_signed = sign.Signature(seal_info_der, seal_info_len, errmsg);
+      if (seal_signed.empty())
+      {
+        return -1;
+      }
+#endif 
       seal->signedvalue = ASN1_BIT_STRING_new();
       ASN1_BIT_STRING_set(seal->signedvalue, &seal_signed[0], seal_signed.size());
     }
@@ -218,7 +227,7 @@ int main() {
         fprintf(stderr, "Error converting cert to DER format\n");
         return -1;
       }
-      
+#if 0      //TODO需要的是sm3withsm2
       CDigest tb_digest("sm3");
       tb_digest.digest_update(tbsign_der, tbsign_len);
       OPENSSL_free(tbsign_der);
@@ -231,6 +240,14 @@ int main() {
       {
         return -1;
       }
+#else
+      std::string  errmsg;
+      auto tb_signed = sign.Signature(tbsign_der, tbsign_len, errmsg);
+      if (tb_signed.empty())
+      {
+        return -1;
+      }
+#endif
       doc_sign->signedvalue = ASN1_BIT_STRING_new();
       ASN1_BIT_STRING_set(doc_sign->signedvalue, &tb_signed[0], tb_signed.size());
     }
@@ -264,7 +281,7 @@ void digestsign() {
   sm2PrivateKey sign(pkey);
   std::string msg = "hello openssl";
   std::string err;
-  auto signed_msg = sign.Signature(msg, err);
+  auto signed_msg = sign.Signature((const unsigned char *)msg.c_str(), msg.length(), err);
   sm2PublicKey verify = sign.CreatePublic();
 
   verify.SignatureVerification(signed_msg, msg, err);

@@ -209,7 +209,7 @@ std::string sm2PrivateKey::Decrypt(const std::string &encoded,
 
 
 //私钥签名
-std::vector<unsigned char> sm2PrivateKey::Signature(const std::string & message, std::string & error) {
+std::vector<unsigned char> sm2PrivateKey::Signature(const unsigned char * message, size_t msg_len, std::string & error) {
   std::string signatured;
   EVP_MD_CTX *mdctx = NULL;
   size_t outbuflen = 0;
@@ -230,7 +230,7 @@ std::vector<unsigned char> sm2PrivateKey::Signature(const std::string & message,
   }
 
 
-  retV = EVP_DigestSignUpdate(mdctx, message.c_str(), message.size());//更新签名内容
+  retV = EVP_DigestSignUpdate(mdctx, message, msg_len);//更新签名内容
   if (retV <= 0) {
     error = GetErrorStr();
     errorL("EVP_DigestSignUpdate:" << error);
