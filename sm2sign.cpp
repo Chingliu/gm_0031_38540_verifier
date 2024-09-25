@@ -307,6 +307,10 @@ std::vector<unsigned char> sm2PrivateKey::PkeySign(unsigned char hash[32]) {
 
 
 bool sm2PublicKey::SignatureVerification(const std::vector<unsigned char> &signature, const std::string &message, std::string &error) {
+  return SignatureVerification(&signature[0], signature.size(), (const unsigned char *)message.c_str(), message.size(), error);
+}
+
+bool sm2PublicKey::SignatureVerification(const unsigned char * signature, int siglen, const unsigned char *message, size_t msglen, std::string &error) {
   std::string signatured;
   EVP_MD_CTX *mdctx = NULL;
   int retV = 0;
@@ -323,14 +327,14 @@ bool sm2PublicKey::SignatureVerification(const std::vector<unsigned char> &signa
     return false;
   }
 
-  retV = EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size());//更新验签内容
+  retV = EVP_DigestVerifyUpdate(mdctx, message, msglen);//更新验签内容
   if (retV <= 0) {
     error = GetErrorStr();
     EVP_MD_CTX_free(mdctx);
     errorL("EVP_DigestVerifyUpdate:" << error);
     return false;
   }
-  retV = EVP_DigestVerifyFinal(mdctx, (const unsigned char *)&signature[0], signature.size());//验证签名
+  retV = EVP_DigestVerifyFinal(mdctx, signature, siglen);//验证签名
   if (retV <= 0) {
     error = GetErrorStr();
     EVP_MD_CTX_free(mdctx);
@@ -340,7 +344,6 @@ bool sm2PublicKey::SignatureVerification(const std::vector<unsigned char> &signa
   EVP_MD_CTX_free(mdctx);
   return true;
 }
-
 int sm2PublicKey::PkeyVerification(const std::vector<unsigned char> & signature, unsigned char hash[32]) {
   EVP_PKEY_CTX *ctx;
   int iret;

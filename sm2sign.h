@@ -41,7 +41,7 @@ public:
   std::string Encrypt(const std::string  & message, std::string & error);
 
   bool SignatureVerification(const std::vector<unsigned char> & signature, const std::string & message, std::string & error);
-
+  bool SignatureVerification(const unsigned char * signature, int siglen, const unsigned char *message, size_t msglen, std::string &error);
   int PkeyVerification(const std::vector<unsigned char> & signature, unsigned char hash[32]);
 
 

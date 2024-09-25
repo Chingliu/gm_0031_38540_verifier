@@ -1,5 +1,5 @@
-#include "38540.h"
-
+﻿#include "38540.h"
+#include "sm2sign.h"
 
 ASN1_SEQUENCE(SESv1_ExtensionData) {
   ASN1_SIMPLE(SESv1_ExtensionData, extnID, ASN1_OBJECT),
@@ -135,7 +135,20 @@ namespace gm {
         if (ptr)SESv2_Signature_free(ptr);
       }
 
-      C38540::C38540(const unsigned char *data, long len):m_psign(d2i_SESv4_Signature(NULL, &data, len), &v4deleter){
+      void x509free(X509* cert) {
+        if (cert)
+        {
+          X509_free(cert);
+        }
+      }
+      void Openssl_deleter(unsigned char *ptr) {
+        if (ptr)
+        {
+          OPENSSL_free(ptr);
+        }
+      }
+      C38540::C38540(const unsigned char *data, long len):m_psign(d2i_SESv4_Signature(NULL, &data, len), &v4deleter),
+      m_signer_cert(nullptr, &x509free){
 
       }
       C38540::~C38540() {
@@ -143,6 +156,82 @@ namespace gm {
       }
 
       int C38540::sign_verify(void *sign_handler, unsigned char * digest, long digest_len) {
+        if (!m_psign)
+        {
+          return m_error = ErrDataFormat;
+        }
+        if (!digest || digest_len <= 0)
+        {
+          return m_error = ErrInvalidDigest;
+        }
+        m_error = verify_signature_signed_value();
+        if (m_error)
+          return m_error;
+        return 0;
+      }
+      int C38540::verify_signature_signed_value() {
+        //验证电子签章签名值是否正确
+        //解析所得的签章信息、签章者证书和签名算法标识,验证电子签章签名值。
+
+        if (!m_psign->cert)
+        {
+          return m_error = ErrInvalidSignerCert;
+        }
+        if (!m_psign->tosign)
+        {
+          return m_error = ErrInvalidTBSign;
+        }
+        if (!m_psign->signedvalue)
+        {
+          return m_error = ErrInvalidSignValue;
+        }
+        std::string signalgid("1.2.156.10197.1.501");
+        if (m_psign->signalgid) {
+          auto objtxt_len = OBJ_obj2txt(nullptr, 0, m_psign->signalgid, 1);
+          if (objtxt_len <=0)
+          {
+            return m_error = ErrBadsignalgid;
+          }
+          signalgid.resize(objtxt_len + 1);
+          OBJ_obj2txt(&signalgid[0], objtxt_len+1, m_psign->signalgid, 1);
+        }
+        if ( 0 == signalgid.compare("1.2.156.10197.1.501") )
+        {
+          return m_error = ErrNotSupoortSignalgId;
+        }
+        auto octet_data = ASN1_STRING_get0_data(m_psign->cert);
+        int octet_len = ASN1_STRING_length(m_psign->cert);
+        m_signer_cert.reset(d2i_X509(NULL, &octet_data, octet_len));
+        if (!m_signer_cert)
+        {
+          return m_error = ErrInvalidSignerCert;
+        }
+        unsigned char *tbsign_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_tbsign_der(nullptr, &Openssl_deleter);
+        int tbsign_len = i2d_TBSv4_Sign(m_psign->tosign, &tbsign_der);
+        guard_tbsign_der.reset(tbsign_der);
+        if (tbsign_len < 0) {
+          return m_error = ErrInvalidTBSign;
+        }
+        auto signed_value = ASN1_STRING_get0_data(m_psign->signedvalue);
+        auto signed_value_len = ASN1_STRING_length(m_psign->signedvalue);
+
+        EVP_CUNSTOM evp;
+        evp.pkey = X509_get_pubkey(m_signer_cert.get());
+        unsigned char *pkey_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_pkey_der(nullptr, &Openssl_deleter);
+        int der_len = i2d_PUBKEY(evp.pkey, &pkey_der);
+        guard_pkey_der.reset(pkey_der);
+        if (der_len<= 0)
+        {
+          return m_error = ErrNoPubKey;
+        }
+        sm2PublicKey sm2verify(pkey_der, der_len);
+        std::string errmsg;
+        if (!sm2verify.SignatureVerification(signed_value, signed_value_len, tbsign_der, tbsign_len, errmsg)) {
+          return m_error = ErrSignatureSignedValuCheckFailed;
+        }
+
         return 0;
       }
       int C38540::sign_get_cert() {

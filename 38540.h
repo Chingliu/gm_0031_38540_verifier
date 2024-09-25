@@ -3,6 +3,7 @@
 #include "openssl\asn1t.h"
 #include "openssl\x509.h"
 #include <openssl\safestack.h>
+#include <string>
 DEFINE_STACK_OF(ASN1_OCTET_STRING);
 typedef struct CertDigestObj_t {
     ASN1_PRINTABLESTRING *type;
@@ -126,6 +127,17 @@ typedef struct SESv4_Signature_t {
 DECLARE_ASN1_FUNCTIONS(SESv4_Signature);
 
 class CGMVerifier_if {
+protected:
+  const int ErrDataFormat = 1000;
+  const int ErrInvalidDigest = 1001;
+  const int ErrBadsignalgid = 1002;
+  const int ErrNotSupoortSignalgId = 1003;
+  const int ErrInvalidSignerCert = 1004;
+  const int ErrInvalidTBSign = 1005;
+  const int ErrInvalidSignValue = 1006;
+  const int ErrNoPubKey = 1007;
+  const int ErrSignatureSignedValuCheckFailed = 1008;
+  int m_error = 0;
 public:
   CGMVerifier_if(const CGMVerifier_if&) = delete;
   CGMVerifier_if(CGMVerifier_if&&) = delete;
@@ -139,10 +151,13 @@ public:
   virtual int sign_get_cert() = 0;
   virtual int sign_get_picture() = 0;
   virtual int sign_get_seal_name() = 0;/*sign_get_seal_*  */
+public:
+  int get_error_code() { return m_error; }
 };
 namespace gm {
   void v4deleter(SESv4_Signature* ptr);
   void v2deleter(SESv2_Signature* ptr);
+  void x509free(X509* cert);
 
   class C38540:public CGMVerifier_if {
   public:
@@ -165,8 +180,12 @@ namespace gm {
     virtual int sign_get_cert() final;
     virtual int sign_get_picture() final;
     virtual int sign_get_seal_name() final;
+
+  private:
+    int verify_signature_signed_value();
   private:
     std::unique_ptr<SESv4_Signature, decltype(&v4deleter)> m_psign;
+    std::unique_ptr<X509, decltype(&x509free)> m_signer_cert;
 
   };
 

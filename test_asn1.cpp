@@ -56,7 +56,7 @@ int main() {
     }
 
   }
-#if 0
+#if 1
   // 调用解析函数
   int result = decode_signature(binary_data, binary_data_len);
   if (result < 0) {
@@ -192,6 +192,7 @@ int main() {
         return -1;
       }
 #endif 
+      OPENSSL_free(seal_info_der);
       seal->signedvalue = ASN1_BIT_STRING_new();
       ASN1_BIT_STRING_set(seal->signedvalue, &seal_signed[0], seal_signed.size());
     }
@@ -248,6 +249,7 @@ int main() {
         return -1;
       }
 #endif
+      OPENSSL_free(tbsign_der);
       doc_sign->signedvalue = ASN1_BIT_STRING_new();
       ASN1_BIT_STRING_set(doc_sign->signedvalue, &tb_signed[0], tb_signed.size());
     }
@@ -298,6 +300,7 @@ int decode_signature(const unsigned char *data, long data_len) {
   if (v4sign.data_parsed())
   {
     printf("it is 38540 sign");
+    v4sign.sign_verify(nullptr, (unsigned char *)"test", 4);
   }
 
 
