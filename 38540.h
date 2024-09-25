@@ -137,6 +137,11 @@ protected:
   const int ErrInvalidSignValue = 1006;
   const int ErrNoPubKey = 1007;
   const int ErrSignatureSignedValuCheckFailed = 1008;
+  const int ErrTBSNoSeal = 1009;
+  const int ErrSealNoSealInfo = 1010;
+  const int ErrSealNoProperty = 1011;
+  const int ErrSealNoCertListType = 1012;
+  const int ErrSignerCertCompareFailed = 1013;
   int m_error = 0;
 public:
   CGMVerifier_if(const CGMVerifier_if&) = delete;
@@ -183,6 +188,8 @@ namespace gm {
 
   private:
     int verify_signature_signed_value();
+    int verify_signer_cert_inside_seal();
+    int compare_signer_cert(SESv4_ESPropertyInfo* property);
   private:
     std::unique_ptr<SESv4_Signature, decltype(&v4deleter)> m_psign;
     std::unique_ptr<X509, decltype(&x509free)> m_signer_cert;

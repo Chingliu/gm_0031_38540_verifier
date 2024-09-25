@@ -167,6 +167,9 @@ namespace gm {
         m_error = verify_signature_signed_value();
         if (m_error)
           return m_error;
+        m_error = verify_signer_cert_inside_seal();
+        if (m_error)
+          return m_error;
         return 0;
       }
       int C38540::verify_signature_signed_value() {
@@ -231,8 +234,61 @@ namespace gm {
         if (!sm2verify.SignatureVerification(signed_value, signed_value_len, tbsign_der, tbsign_len, errmsg)) {
           return m_error = ErrSignatureSignedValuCheckFailed;
         }
-
         return 0;
+      }
+      int C38540::verify_signer_cert_inside_seal() {
+        //验证签章者证书与电子印章的匹配性
+        if (!m_psign->tosign->eseal)
+        {
+          return m_error = ErrTBSNoSeal;
+        }
+        auto eseal = m_psign->tosign->eseal;
+        if (!eseal->sealinfo)
+        {
+          return m_error = ErrSealNoSealInfo;
+        }
+        if (!eseal->sealinfo->property) {
+          return m_error = ErrSealNoProperty;
+        }
+        auto property = eseal->sealinfo->property;
+        if (!property->certListType)
+        {
+          return m_error = ErrSealNoCertListType;
+        }
+        auto cert_list_type =  ASN1_INTEGER_get(property->certListType);
+        if (cert_list_type == 2)
+        {
+          //TODO
+        }
+        else {
+          if (m_error = compare_signer_cert(property)!= 0)
+          {
+            return m_error;
+          }
+        }
+        return 0;
+      }
+      int C38540::compare_signer_cert(SESv4_ESPropertyInfo* property) {
+        //auto cert = ASN1_STRING_get0_data(m_psign->cert);
+        //int certlen = ASN1_STRING_length(m_psign->cert);
+        int num_certs = sk_ASN1_OCTET_STRING_num(property->certs);
+        if (num_certs <=0)
+        {
+          return ErrSignerCertCompareFailed;
+        }
+        auto certs = property->certs;
+        for (int i = 0; i < num_certs; i++) {
+          // 获取第 i 个 ASN1_OCTET_STRING 对象
+          ASN1_OCTET_STRING *octet_string = sk_ASN1_OCTET_STRING_value(certs, i);
+          if (octet_string != NULL) {
+            // 获取 ASN1_OCTET_STRING 的数据和长度
+            //const unsigned char *data = ASN1_STRING_get0_data(octet_string);
+            //int length = ASN1_STRING_length(octet_string);
+            if (0 == ASN1_OCTET_STRING_cmp(m_psign->cert, octet_string))
+              return 0;
+          }
+        }
+        return ErrSignerCertCompareFailed;
       }
       int C38540::sign_get_cert() {
         return 0;
