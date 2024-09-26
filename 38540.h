@@ -142,6 +142,18 @@ protected:
   const int ErrSealNoProperty = 1011;
   const int ErrSealNoCertListType = 1012;
   const int ErrSignerCertCompareFailed = 1013;
+  const int ErrInvalidSealCert = 1014;
+  const int ErrInvalidSealSignalgId = 1015;
+  const int ErrSealSignValue = 1016;
+  const int ErrInvalidSealMakerCert = 1017;
+  const int ErrSealSignedValuCheckFailed = 1018;
+  const int ErrSealMakerCertNotInEffect = 1019;
+  const int ErrSealMakerCertExpired = 1020;
+  const int ErrSealNoValidTime = 1021;
+  const int ErrValidTimeStart = 1022;
+  const int ErrValidTimeEnd = 1023;
+  const int ErrNewTime = 1024;
+  const int ErrDocHashCheck = 1025;
   int m_error = 0;
 public:
   CGMVerifier_if(const CGMVerifier_if&) = delete;
@@ -186,13 +198,24 @@ namespace gm {
     virtual int sign_get_picture() final;
     virtual int sign_get_seal_name() final;
 
-  private:
+  private: //电子签章验证
     int verify_signature_signed_value();
     int verify_signer_cert_inside_seal();
     int compare_signer_cert(SESv4_ESPropertyInfo* property);
+    int verify_signer_cert_valid();
+    int verify_doc_hash(unsigned char * digest, long digest_len);
+  private://电子印章验证
+    int verify_seal();
+    int check_seal_signvalue(SESv4_Seal *eseal);
+    int check_seal_maker_cert();
+    int check_seal_time(SESv4_Seal *eseal);
+  private:
+    int check_cert(X509 *cert);
+    int check_time(ASN1_GENERALIZEDTIME *validStart, ASN1_GENERALIZEDTIME *validEnd, time_t timepoint);
   private:
     std::unique_ptr<SESv4_Signature, decltype(&v4deleter)> m_psign;
-    std::unique_ptr<X509, decltype(&x509free)> m_signer_cert;
+    std::unique_ptr<X509, decltype(&x509free)> m_signer_cert; //签章者证书
+    std::unique_ptr<X509, decltype(&x509free)> m_seal_maker_cert; //制章者证书
 
   };
 

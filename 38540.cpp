@@ -1,6 +1,6 @@
 ﻿#include "38540.h"
 #include "sm2sign.h"
-
+#include <openssl/x509v3.h>
 ASN1_SEQUENCE(SESv1_ExtensionData) {
   ASN1_SIMPLE(SESv1_ExtensionData, extnID, ASN1_OBJECT),
   ASN1_SIMPLE(SESv1_ExtensionData, critical, ASN1_BOOLEAN),
@@ -147,8 +147,11 @@ namespace gm {
           OPENSSL_free(ptr);
         }
       }
+
+
       C38540::C38540(const unsigned char *data, long len):m_psign(d2i_SESv4_Signature(NULL, &data, len), &v4deleter),
-      m_signer_cert(nullptr, &x509free){
+      m_signer_cert(nullptr, &x509free),
+      m_seal_maker_cert(nullptr, &x509free) {
 
       }
       C38540::~C38540() {
@@ -168,6 +171,15 @@ namespace gm {
         if (m_error)
           return m_error;
         m_error = verify_signer_cert_inside_seal();
+        if (m_error)
+          return m_error;
+        m_error = verify_seal();
+        if (m_error)
+          return m_error;
+        m_error = verify_signer_cert_valid();
+        if (m_error)
+          return m_error;
+        m_error = verify_doc_hash(digest, digest_len);
         if (m_error)
           return m_error;
         return 0;
@@ -289,6 +301,236 @@ namespace gm {
           }
         }
         return ErrSignerCertCompareFailed;
+      }
+      int C38540::verify_seal() {
+        //验证电子签章有效性
+        if (!m_psign->tosign->eseal)
+        {
+          return m_error = ErrTBSNoSeal;
+        }
+        auto seal = m_psign->tosign->eseal;
+        m_error = check_seal_signvalue(seal);
+        if (m_error != 0)
+        {
+          return m_error;
+        }
+        m_error = check_seal_maker_cert();
+        if (m_error != 0)
+        {
+          return m_error;
+        }
+        m_error = check_seal_time(seal);
+        if (m_error != 0)
+        {
+          return m_error;
+        }
+        return m_error;
+      }
+      int C38540::check_seal_signvalue(SESv4_Seal *eseal) {
+        //验证电子印章签名值是否正确
+        if (!eseal->cert)
+        {
+          return m_error = ErrInvalidSealCert;
+        }
+        if (!eseal->sealinfo)
+        {
+          return m_error = ErrSealNoSealInfo;
+        }
+        if (!eseal->signalgid)
+        {
+          return m_error = ErrInvalidSealSignalgId;
+        }
+        if (!eseal->signedvalue)
+        {
+          return m_error = ErrSealSignValue;
+        }
+        std::string signalgid("1.2.156.10197.1.501");
+        if (eseal->signalgid) {
+          auto objtxt_len = OBJ_obj2txt(nullptr, 0, eseal->signalgid, 1);
+          if (objtxt_len <= 0)
+          {
+            return m_error = ErrBadsignalgid;
+          }
+          signalgid.resize(objtxt_len + 1);
+          OBJ_obj2txt(&signalgid[0], objtxt_len + 1, eseal->signalgid, 1);
+        }
+        if (0 == signalgid.compare("1.2.156.10197.1.501"))
+        {
+          return m_error = ErrNotSupoortSignalgId;
+        }
+        auto octet_data = ASN1_STRING_get0_data(eseal->cert);
+        int octet_len = ASN1_STRING_length(eseal->cert);
+        m_seal_maker_cert.reset(d2i_X509(NULL, &octet_data, octet_len));
+        if (!m_seal_maker_cert)
+        {
+          return m_error = ErrInvalidSealMakerCert;
+        }
+        unsigned char *tbsign_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_tbsign_der(nullptr, &Openssl_deleter);
+        int tbsign_len = i2d_SESv4_SealInfo(eseal->sealinfo, &tbsign_der);
+        guard_tbsign_der.reset(tbsign_der);
+        if (tbsign_len < 0) {
+          return m_error = ErrInvalidTBSign;
+        }
+        auto signed_value = ASN1_STRING_get0_data(eseal->signedvalue);
+        auto signed_value_len = ASN1_STRING_length(eseal->signedvalue);
+
+        EVP_CUNSTOM evp;
+        evp.pkey = X509_get_pubkey(m_seal_maker_cert.get());
+        unsigned char *pkey_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_pkey_der(nullptr, &Openssl_deleter);
+        int der_len = i2d_PUBKEY(evp.pkey, &pkey_der);
+        guard_pkey_der.reset(pkey_der);
+        if (der_len <= 0)
+        {
+          return m_error = ErrNoPubKey;
+        }
+        sm2PublicKey sm2verify(pkey_der, der_len);
+        std::string errmsg;
+        if (!sm2verify.SignatureVerification(signed_value, signed_value_len, tbsign_der, tbsign_len, errmsg)) {
+          return m_error = ErrSealSignedValuCheckFailed;
+        }
+        return 0;
+      }
+      int C38540::check_cert(X509 *cert) {
+        time_t current_time = time(NULL);
+
+        // 获取证书有效期
+        ASN1_TIME *not_before = X509_get_notBefore(cert);
+        ASN1_TIME *not_after = X509_get_notAfter(cert);
+
+        if (X509_cmp_time(not_before, &current_time) > 0) {
+          return m_error = ErrSealMakerCertNotInEffect;
+        }
+        else if (X509_cmp_time(not_after, &current_time) < 0) {
+          return m_error = ErrSealMakerCertExpired;
+        }
+
+
+        // 获取 Key Usage 扩展字段
+        ASN1_BIT_STRING *usage = (ASN1_BIT_STRING *)X509_get_ext_d2i(cert, NID_key_usage, NULL, NULL);
+        if (usage) {
+          int usage_flags = usage->data[0]; // Key Usage 是一个 bit string，通常存储在第一个字节
+          if (usage_flags & KU_DIGITAL_SIGNATURE) {
+            printf("Key Usage includes Digital Signature\n");
+          }
+          if (usage_flags & KU_KEY_ENCIPHERMENT) {
+            printf("Key Usage includes Key Encipherment\n");
+          }
+          // 其他可能的 Key Usage 校验
+        }
+        else {
+          printf("No Key Usage found.\n");
+        }
+
+        // 获取 Extended Key Usage 扩展字段
+        STACK_OF(ASN1_OBJECT) *eku = (STACK_OF(ASN1_OBJECT) *) X509_get_ext_d2i(cert, NID_ext_key_usage, NULL, NULL);
+        if (eku) {
+          int num_eku = sk_ASN1_OBJECT_num(eku);
+          for (int i = 0; i < num_eku; i++) {
+            ASN1_OBJECT *obj = sk_ASN1_OBJECT_value(eku, i);
+            char buf[80];
+            OBJ_obj2txt(buf, sizeof(buf), obj, 1);
+            printf("Extended Key Usage: %s\n", buf);
+          }
+        }
+        else {
+          printf("No Extended Key Usage found.\n");
+        }
+
+        return 0;
+      }
+      int C38540::check_seal_maker_cert() {
+        if (!m_seal_maker_cert)
+        {
+          return m_error = ErrInvalidSealMakerCert;
+        }
+        //验证制章者证书的有效性，验证项至少包括：制章者证书信任链验证、制章者证书有效期验证、制章者证书是否被撤销、密钥用法是否正确
+        //TODO 制章者证书信任链验证,制章者证书是否被撤销, 需要增加在线验证模式
+        //TODO 
+        return check_cert(m_seal_maker_cert.get());
+      }
+      int C38540::verify_signer_cert_valid() {
+        if (!m_signer_cert)
+        {
+          return m_error = ErrInvalidSealMakerCert;
+        }
+        //验证签章者证书的有效性，验证项至少包括：签章者证书信任链验证、签章者证书有效期验证、签章者证书是否被撤销、密钥用法是否正确
+        //TODO 签章者证书信任链验证,签章者证书是否被撤销, 需要增加在线验证模式
+        //TODO 
+        auto iret = check_cert(m_signer_cert.get());
+        if (iret != ErrSealMakerCertExpired)
+        {
+          return m_error = iret;
+        }
+        auto timeinfo = m_psign->tosign->timeinfo;
+        // 获取证书有效期
+        ASN1_TIME *not_before = X509_get_notBefore(m_signer_cert.get());
+        ASN1_TIME *not_after = X509_get_notAfter(m_signer_cert.get());
+        tm sign_tm;
+        ASN1_TIME_to_tm(timeinfo, &sign_tm);
+        auto sign_timet = mktime(&sign_tm);
+        if (X509_cmp_time(not_before, &sign_timet) > 0) {
+          return m_error = ErrSealMakerCertNotInEffect;
+        }
+        else if (X509_cmp_time(not_after, &sign_timet) < 0) {
+          return m_error = ErrSealMakerCertExpired;
+        }
+        return 0;
+      }
+      int C38540::check_seal_time(SESv4_Seal *eseal) {
+        if (!eseal->sealinfo)
+        {
+          return m_error = ErrSealNoSealInfo;
+        }
+        if (!eseal->sealinfo->property) {
+          return m_error = ErrSealNoProperty;
+        }
+        auto property = eseal->sealinfo->property;
+        if (!property->validStart || !property->validEnd)
+        {
+          return m_error = ErrSealNoValidTime;
+        }
+        m_error = 0;
+        time_t current_time = time(NULL);
+        m_error = check_time(property->validStart, property->validEnd, current_time);
+        return m_error;
+      }
+      int C38540::check_time(ASN1_GENERALIZEDTIME *validStart, ASN1_GENERALIZEDTIME *validEnd, time_t timepoint) {
+        int iret = 0;
+        ASN1_GENERALIZEDTIME *current_asn1_time = ASN1_GENERALIZEDTIME_new();
+        do
+        {
+          ASN1_TIME_set(current_asn1_time, timepoint);
+
+          // 比较当前时间和 validStart
+          if (ASN1_TIME_compare(current_asn1_time, validStart) < 0) {
+            iret = ErrValidTimeStart;
+            break;
+          }
+
+          // 比较当前时间和 validEnd
+          if (ASN1_TIME_compare(current_asn1_time, validEnd) > 0) {
+            iret = ErrValidTimeEnd;
+            break;
+          }
+        } while (0);
+        ASN1_GENERALIZEDTIME_free(current_asn1_time);
+        return iret;
+      }
+      int C38540::verify_doc_hash(unsigned char * digest, long digest_len) {
+        //TODO: 
+        auto datahash = ASN1_STRING_get0_data(m_psign->tosign->datahash);
+        auto datahash_len = ASN1_STRING_length(m_psign->tosign->datahash);
+        if (datahash_len != digest_len)
+        {
+          return ErrDocHashCheck;
+        }
+        if (0 == memcpy(digest, datahash, digest_len))
+        {
+          return 0;
+        }
+        return ErrDocHashCheck;
       }
       int C38540::sign_get_cert() {
         return 0;
