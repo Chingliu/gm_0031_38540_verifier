@@ -126,6 +126,7 @@ typedef struct SESv4_Signature_t {
 }SESv4_Signature;
 DECLARE_ASN1_FUNCTIONS(SESv4_Signature);
 
+namespace gm {
 class CGMVerifier_if {
 protected:
   const int ErrDataFormat = 1000;
@@ -154,7 +155,11 @@ protected:
   const int ErrValidTimeEnd = 1023;
   const int ErrNewTime = 1024;
   const int ErrDocHashCheck = 1025;
+  const int ErrNoTimeInfo = 1026;
   int m_error = 0;
+protected:
+  int compare_signer_cert(STACK_OF(ASN1_OCTET_STRING) *certs, ASN1_OCTET_STRING *cert);
+  int check_cert(X509 *cert);
 public:
   CGMVerifier_if(const CGMVerifier_if&) = delete;
   CGMVerifier_if(CGMVerifier_if&&) = delete;
@@ -164,14 +169,15 @@ public:
   CGMVerifier_if() = default;
 public:
   virtual bool data_parsed() = 0;
-  virtual int sign_verify(void *sign_handler, unsigned char * digest, long digest_len) = 0;
-  virtual int sign_get_cert() = 0;
+  virtual int sign_verify(unsigned char * digest, long digest_len) = 0;
+  //type等1，返回签章者证书指针，type=2返回制章者证书指针，指针调用者无需管理
+  virtual void * sign_get_cert(unsigned int type) = 0;
   virtual int sign_get_picture() = 0;
   virtual int sign_get_seal_name() = 0;/*sign_get_seal_*  */
 public:
   int get_error_code() { return m_error; }
 };
-namespace gm {
+
   void v4deleter(SESv4_Signature* ptr);
   void v2deleter(SESv2_Signature* ptr);
   void x509free(X509* cert);
@@ -193,15 +199,15 @@ namespace gm {
       }
       return false;
     }
-    virtual int sign_verify(void *sign_handler, unsigned char * digest, long digest_len) final;
-    virtual int sign_get_cert() final;
+    virtual int sign_verify(unsigned char * digest, long digest_len) final;
+    virtual void * sign_get_cert(unsigned int type) final;
     virtual int sign_get_picture() final;
     virtual int sign_get_seal_name() final;
 
   private: //电子签章验证
     int verify_signature_signed_value();
     int verify_signer_cert_inside_seal();
-    int compare_signer_cert(SESv4_ESPropertyInfo* property);
+    
     int verify_signer_cert_valid();
     int verify_doc_hash(unsigned char * digest, long digest_len);
   private://电子印章验证
@@ -210,7 +216,7 @@ namespace gm {
     int check_seal_maker_cert();
     int check_seal_time(SESv4_Seal *eseal);
   private:
-    int check_cert(X509 *cert);
+    
     int check_time(ASN1_GENERALIZEDTIME *validStart, ASN1_GENERALIZEDTIME *validEnd, time_t timepoint);
   private:
     std::unique_ptr<SESv4_Signature, decltype(&v4deleter)> m_psign;
@@ -236,12 +242,21 @@ namespace gm {
       }
       return false;
     }
-    virtual int sign_verify(void *sign_handler, unsigned char * digest, long digest_len) final;
-    virtual int sign_get_cert() final;
+    virtual int sign_verify(unsigned char * digest, long digest_len) final;
+    virtual void * sign_get_cert(unsigned int type) final;
     virtual int sign_get_picture() final;
     virtual int sign_get_seal_name() final;
   private:
+    int verify_signature_signed_value();
+    int verify_signer_cert_inside_seal();
+    int verify_signer_cert_valid();
+    int verify_doc_hash(unsigned char * digest, long digest_len);
+  private:
+    int verify_seal();
+    int check_seal_signvalue(SESv2_Seal *eseal);
+  private:
     std::unique_ptr<SESv2_Signature, decltype(&v2deleter)> m_psign;
-
+    std::unique_ptr<X509, decltype(&x509free)> m_signer_cert; //签章者证书
+    std::unique_ptr<X509, decltype(&x509free)> m_seal_maker_cert; //制章者证书
   };
 }

@@ -44,8 +44,8 @@ int main() {
   }
   unsigned char *binary_data = NULL;  // 从文件或其他来源获取的二进制数据
   long binary_data_len = 0;        // 二进制数据的长度
-  //FILE *fp = fopen("d:\\SignedValue.dat", "rb");
-  FILE *fp = fopen("d:\\tests\\38540.dat", "rb");
+  FILE *fp = fopen("d:\\SignedValue.dat", "rb");
+  //FILE *fp = fopen("d:\\tests\\38540.dat", "rb");
   if (fp)
   {
     binary_data = (unsigned char *)malloc(50 * 1024);
@@ -295,12 +295,13 @@ int decode_signature(const unsigned char *data, long data_len) {
   gm::C0031 v2sign(data, data_len);
   if (v2sign.data_parsed()) {
     printf("it is 0031 sign");
+    v2sign.sign_verify((unsigned char *)"test", 4);
   }
   gm::C38540 v4sign(data, data_len);
   if (v4sign.data_parsed())
   {
     printf("it is 38540 sign");
-    v4sign.sign_verify(nullptr, (unsigned char *)"test", 4);
+    v4sign.sign_verify((unsigned char *)"test", 4);
   }
 
 

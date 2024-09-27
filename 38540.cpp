@@ -158,7 +158,7 @@ namespace gm {
 
       }
 
-      int C38540::sign_verify(void *sign_handler, unsigned char * digest, long digest_len) {
+      int C38540::sign_verify(unsigned char * digest, long digest_len) {
         if (!m_psign)
         {
           return m_error = ErrDataFormat;
@@ -273,22 +273,22 @@ namespace gm {
           //TODO
         }
         else {
-          if (m_error = compare_signer_cert(property)!= 0)
+          if (m_error = compare_signer_cert(property->certs, m_psign->cert)!= 0)
           {
             return m_error;
           }
         }
         return 0;
       }
-      int C38540::compare_signer_cert(SESv4_ESPropertyInfo* property) {
+      int CGMVerifier_if::compare_signer_cert(STACK_OF(ASN1_OCTET_STRING) *certs, ASN1_OCTET_STRING *cert) {
         //auto cert = ASN1_STRING_get0_data(m_psign->cert);
         //int certlen = ASN1_STRING_length(m_psign->cert);
-        int num_certs = sk_ASN1_OCTET_STRING_num(property->certs);
+        int num_certs = sk_ASN1_OCTET_STRING_num(certs);
         if (num_certs <=0)
         {
           return ErrSignerCertCompareFailed;
         }
-        auto certs = property->certs;
+ 
         for (int i = 0; i < num_certs; i++) {
           // 获取第 i 个 ASN1_OCTET_STRING 对象
           ASN1_OCTET_STRING *octet_string = sk_ASN1_OCTET_STRING_value(certs, i);
@@ -296,7 +296,7 @@ namespace gm {
             // 获取 ASN1_OCTET_STRING 的数据和长度
             //const unsigned char *data = ASN1_STRING_get0_data(octet_string);
             //int length = ASN1_STRING_length(octet_string);
-            if (0 == ASN1_OCTET_STRING_cmp(m_psign->cert, octet_string))
+            if (0 == ASN1_OCTET_STRING_cmp(cert, octet_string))
               return 0;
           }
         }
@@ -392,7 +392,7 @@ namespace gm {
         }
         return 0;
       }
-      int C38540::check_cert(X509 *cert) {
+      int CGMVerifier_if::check_cert(X509 *cert) {
         time_t current_time = time(NULL);
 
         // 获取证书有效期
@@ -459,7 +459,7 @@ namespace gm {
         //TODO 签章者证书信任链验证,签章者证书是否被撤销, 需要增加在线验证模式
         //TODO 
         auto iret = check_cert(m_signer_cert.get());
-        if (iret != ErrSealMakerCertExpired)
+        if (iret != 0 && iret != ErrSealMakerCertExpired)
         {
           return m_error = iret;
         }
@@ -468,6 +468,7 @@ namespace gm {
         ASN1_TIME *not_before = X509_get_notBefore(m_signer_cert.get());
         ASN1_TIME *not_after = X509_get_notAfter(m_signer_cert.get());
         tm sign_tm;
+        //TODO有问题
         ASN1_TIME_to_tm(timeinfo, &sign_tm);
         auto sign_timet = mktime(&sign_tm);
         if (X509_cmp_time(not_before, &sign_timet) > 0) {
@@ -532,8 +533,17 @@ namespace gm {
         }
         return ErrDocHashCheck;
       }
-      int C38540::sign_get_cert() {
-        return 0;
+      void * C38540::sign_get_cert(unsigned int type) {
+        switch (type)
+        {
+        case 1:
+          return m_signer_cert.get();
+        case 2:
+          return m_seal_maker_cert.get();
+        default:
+          break;
+        }
+        return nullptr;
       }
       int C38540::sign_get_picture() {
         return 0;
@@ -544,17 +554,44 @@ namespace gm {
 
 
 
-      C0031::C0031(const unsigned char *data, long len) :m_psign(d2i_SESv2_Signature(NULL, &data, len), &v2deleter) {
+      C0031::C0031(const unsigned char *data, long len) :m_psign(d2i_SESv2_Signature(NULL, &data, len), &v2deleter),
+        m_signer_cert(nullptr, &x509free),
+        m_seal_maker_cert(nullptr, &x509free) {
 
       }
       C0031::~C0031() {
 
       }
 
-      int C0031::sign_verify(void *sign_handler, unsigned char * digest, long digest_len) {
+      int C0031::sign_verify(unsigned char * digest, long digest_len) {
+        m_error = verify_signature_signed_value();
+        if (m_error)
+        {
+          return m_error;
+        }
+        m_error = verify_signer_cert_inside_seal();
+        if (m_error)
+        {
+          return m_error;
+        }
+        m_error = verify_signer_cert_valid();
+        if (m_error)
+        {
+          return m_error;
+        }
+        m_error = verify_seal();
+        if (m_error)
+        {
+          return m_error;
+        }
+        m_error = verify_doc_hash(digest, digest_len);
+        if (m_error)
+        {
+          return m_error;
+        }
         return 0;
       }
-      int C0031::sign_get_cert() {
+      void * C0031::sign_get_cert(unsigned int type) {
         return 0;
       }
       int C0031::sign_get_picture() {
@@ -563,4 +600,293 @@ namespace gm {
       int C0031::sign_get_seal_name() {
         return 0;
       }
-}
+      int C0031::verify_signature_signed_value() {
+        if (!m_psign)
+        {
+          return m_error = ErrDataFormat;
+        }
+        if (!m_psign->signature)
+        {
+          return m_error = ErrInvalidSignValue;
+        }
+        if (!m_psign->tosign)
+        {
+          return m_error = ErrInvalidTBSign;
+        }
+        if (!m_psign->tosign->cert)
+        {
+          return m_error = ErrInvalidSignerCert;
+        }
+        auto tbs = m_psign->tosign;
+        if (!tbs->datahash)
+        {
+          return m_error = ErrInvalidDigest;
+        }
+        if (!tbs->eseal)
+        {
+          return m_error = ErrTBSNoSeal;
+        }
+        if (!tbs->signalgid)
+        {
+          return m_error = ErrBadsignalgid;
+        }
+        if (!tbs->timeinfo)
+        {
+          return m_error = ErrNoTimeInfo;
+        }
+        std::string signalgid("1.2.156.10197.1.501");
+        if (tbs->signalgid) {
+          auto objtxt_len = OBJ_obj2txt(nullptr, 0, tbs->signalgid, 1);
+          if (objtxt_len <= 0)
+          {
+            return m_error = ErrBadsignalgid;
+          }
+          signalgid.resize(objtxt_len + 1);
+          OBJ_obj2txt(&signalgid[0], objtxt_len + 1, tbs->signalgid, 1);
+        }
+        if (0 == signalgid.compare("1.2.156.10197.1.501"))
+        {
+          return m_error = ErrNotSupoortSignalgId;
+        }
+        //TODO RSA
+        auto octet_data = ASN1_STRING_get0_data(tbs->cert);
+        int octet_len = ASN1_STRING_length(tbs->cert);
+        m_signer_cert.reset(d2i_X509(NULL, &octet_data, octet_len));
+        if (!m_signer_cert)
+        {
+          return m_error = ErrInvalidSignerCert;
+        }
+        unsigned char *tbsign_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_tbsign_der(nullptr, &Openssl_deleter);
+        int tbsign_len = i2d_TBSv2_Sign(m_psign->tosign, &tbsign_der);
+        guard_tbsign_der.reset(tbsign_der);
+        if (tbsign_len < 0) {
+          return m_error = ErrInvalidTBSign;
+        }
+        auto signed_value = ASN1_STRING_get0_data(m_psign->signature);
+        auto signed_value_len = ASN1_STRING_length(m_psign->signature);
+
+        EVP_CUNSTOM evp;
+        evp.pkey = X509_get_pubkey(m_signer_cert.get());
+        unsigned char *pkey_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_pkey_der(nullptr, &Openssl_deleter);
+        int der_len = i2d_PUBKEY(evp.pkey, &pkey_der);
+        guard_pkey_der.reset(pkey_der);
+        if (der_len <= 0)
+        {
+          return m_error = ErrNoPubKey;
+        }
+        sm2PublicKey sm2verify(pkey_der, der_len);
+        std::string errmsg;
+        if (!sm2verify.SignatureVerification(signed_value, signed_value_len, tbsign_der, tbsign_len, errmsg)) {
+          return m_error = ErrSignatureSignedValuCheckFailed;
+        }
+        return 0;
+      }
+
+      int C0031::verify_doc_hash(unsigned char * digest, long digest_len) {
+        //TODO: 
+        auto datahash = ASN1_STRING_get0_data(m_psign->tosign->datahash);
+        auto datahash_len = ASN1_STRING_length(m_psign->tosign->datahash);
+        if (datahash_len != digest_len)
+        {
+          return ErrDocHashCheck;
+        }
+        if (0 == memcpy(digest, datahash, digest_len))
+        {
+          return 0;
+        }
+        return ErrDocHashCheck;
+      }
+      int C0031::verify_signer_cert_inside_seal() {
+        //验证签章者证书与电子印章的匹配性
+        if (!m_psign->tosign->eseal)
+        {
+          return m_error = ErrTBSNoSeal;
+        }
+        auto eseal = m_psign->tosign->eseal;
+        if (!eseal->sealinfo)
+        {
+          return m_error = ErrSealNoSealInfo;
+        }
+        if (!eseal->sealinfo->property) {
+          return m_error = ErrSealNoProperty;
+        }
+        auto property = eseal->sealinfo->property;
+        {
+          if (m_error = compare_signer_cert(property->certs, m_psign->tosign->cert) != 0)
+          {
+            return m_error;
+          }
+        }
+        return 0;
+      }
+      int C0031::verify_signer_cert_valid() {
+        if (!m_signer_cert)
+        {
+          return m_error = ErrInvalidSealMakerCert;
+        }
+        //验证签章者证书的有效性，验证项至少包括：签章者证书信任链验证、签章者证书有效期验证、签章者证书是否被撤销、密钥用法是否正确
+        //TODO 签章者证书信任链验证,签章者证书是否被撤销, 需要增加在线验证模式
+        //TODO 
+        auto iret = check_cert(m_signer_cert.get());
+        if (iret !=0 && iret != ErrSealMakerCertExpired)
+        {
+          return m_error = iret;
+        }
+        auto timeinfo = m_psign->tosign->timeinfo;
+        // 获取证书有效期
+        ASN1_TIME *not_before = X509_get_notBefore(m_signer_cert.get());
+        ASN1_TIME *not_after = X509_get_notAfter(m_signer_cert.get());
+        tm sign_tm;
+        ASN1_TIME_to_tm(timeinfo, &sign_tm);
+        auto sign_timet = mktime(&sign_tm);
+        if (X509_cmp_time(not_before, &sign_timet) > 0) {
+          return m_error = ErrSealMakerCertNotInEffect;
+        }
+        else if (X509_cmp_time(not_after, &sign_timet) < 0) {
+          return m_error = ErrSealMakerCertExpired;
+        }
+        return 0;
+      }
+
+      int C0031::verify_seal() {
+        //验证电子签章有效性
+        if (!m_psign->tosign->eseal)
+        {
+          return m_error = ErrTBSNoSeal;
+        }
+        auto seal = m_psign->tosign->eseal;
+        m_error = check_seal_signvalue(seal);
+        if (m_error != 0)
+        {
+          return m_error;
+        }
+        //TODO
+        //m_error = check_seal_maker_cert();
+        if (m_error != 0)
+        {
+          return m_error;
+        }
+        //TODO
+       // m_error = check_seal_time(seal);
+        if (m_error != 0)
+        {
+          return m_error;
+        }
+        return m_error;
+      }
+
+      typedef struct SESv2_Seal_t {
+        SESv2_SealInfo *sealinfo;
+        ASN1_OCTET_STRING *cert;
+        ASN1_OBJECT *signalgid;
+      }SESv2_SealSignRange;
+      DECLARE_ASN1_FUNCTIONS(SESv2_SealSignRange);
+
+      ASN1_SEQUENCE(SESv2_SealSignRange) {
+        ASN1_SIMPLE(SESv2_SealSignRange, sealinfo, SESv2_SealInfo),
+          ASN1_SIMPLE(SESv2_SealSignRange, cert, ASN1_OCTET_STRING),
+          ASN1_SIMPLE(SESv2_SealSignRange, signalgid, ASN1_OBJECT)
+      } ASN1_SEQUENCE_END(SESv2_SealSignRange)
+     IMPLEMENT_ASN1_FUNCTIONS(SESv2_SealSignRange)
+
+      int C0031::check_seal_signvalue(SESv2_Seal *eseal) {
+        //验证电子印章签名值是否正确
+        auto signinfo = eseal->signinfo;
+        auto sealinfo = eseal->sealinfo;
+        if (!signinfo->cert)
+        {
+          return m_error = ErrInvalidSealCert;
+        }
+        if (!eseal->sealinfo)
+        {
+          return m_error = ErrSealNoSealInfo;
+        }
+        if (!signinfo->signalgid)
+        {
+          return m_error = ErrInvalidSealSignalgId;
+        }
+        if (!signinfo->signedvalue)
+        {
+          return m_error = ErrSealSignValue;
+        }
+        std::string signalgid("1.2.156.10197.1.501");
+        if (signinfo->signalgid) {
+          auto objtxt_len = OBJ_obj2txt(nullptr, 0, signinfo->signalgid, 1);
+          if (objtxt_len <= 0)
+          {
+            return m_error = ErrBadsignalgid;
+          }
+          signalgid.resize(objtxt_len + 1);
+          OBJ_obj2txt(&signalgid[0], objtxt_len + 1, signinfo->signalgid, 1);
+        }
+        if (0 == signalgid.compare("1.2.156.10197.1.501"))
+        {
+          return m_error = ErrNotSupoortSignalgId;
+        }
+        auto octet_data = ASN1_STRING_get0_data(signinfo->cert);
+        int octet_len = ASN1_STRING_length(signinfo->cert);
+        m_seal_maker_cert.reset(d2i_X509(NULL, &octet_data, octet_len));
+        if (!m_seal_maker_cert)
+        {
+          return m_error = ErrInvalidSealMakerCert;
+        }
+#if 0
+        unsigned char *tbsign_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_tbsign_der(nullptr, &Openssl_deleter);
+        int tbsign_len = i2d_SESv2_SealInfo(eseal->sealinfo, &tbsign_der);
+        guard_tbsign_der.reset(tbsign_der);
+        if (tbsign_len < 0) {
+          return m_error = ErrInvalidTBSign;
+        }
+
+        // 获取 signalgid 的数据和长度
+        int signalgid_len = i2d_ASN1_OBJECT(signinfo->signalgid, NULL); // 获取 signalgid 编码后的长度
+        unsigned char *signalgid_data = (unsigned char *)OPENSSL_malloc(signalgid_len);
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_signalgid(nullptr, &Openssl_deleter);
+        guard_signalgid.reset(signalgid_data);
+        unsigned char *p = signalgid_data;
+        i2d_ASN1_OBJECT(signinfo->signalgid, &p); // 对象序列化为 DER 格式
+
+        unsigned char *seal_tbs = (unsigned char *)OPENSSL_malloc(tbsign_len + octet_len + signalgid_len);
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_sealtbs(nullptr, &Openssl_deleter);
+        guard_signalgid.reset(seal_tbs);
+        memcpy(seal_tbs, tbsign_der, tbsign_len);
+        memcpy(seal_tbs + tbsign_len, octet_data, octet_len);
+        memcpy(seal_tbs + tbsign_len + octet_len, signalgid_data, signalgid_len);
+#else
+        SESv2_SealSignRange calc_sign;
+        calc_sign.sealinfo = sealinfo;
+        calc_sign.cert = signinfo->cert;
+        calc_sign.signalgid = signinfo->signalgid;
+        unsigned char *tbsign_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_tbsign_der(nullptr, &Openssl_deleter);
+        int tbsign_len = i2d_SESv2_SealSignRange(&calc_sign, &tbsign_der);
+        guard_tbsign_der.reset(tbsign_der);
+        if (tbsign_len < 0) {
+          return m_error = ErrInvalidTBSign;
+        }
+
+#endif
+        auto signed_value = ASN1_STRING_get0_data(signinfo->signedvalue);
+        auto signed_value_len = ASN1_STRING_length(signinfo->signedvalue);
+
+        EVP_CUNSTOM evp;
+        evp.pkey = X509_get_pubkey(m_seal_maker_cert.get());
+        unsigned char *pkey_der = NULL;
+        std::unique_ptr<unsigned char, decltype(&Openssl_deleter)> guard_pkey_der(nullptr, &Openssl_deleter);
+        int der_len = i2d_PUBKEY(evp.pkey, &pkey_der);
+        guard_pkey_der.reset(pkey_der);
+        if (der_len <= 0)
+        {
+          return m_error = ErrNoPubKey;
+        }
+        sm2PublicKey sm2verify(pkey_der, der_len);
+        std::string errmsg;
+        if (!sm2verify.SignatureVerification(signed_value, signed_value_len, tbsign_der, tbsign_len, errmsg)) {
+          return m_error = ErrSealSignedValuCheckFailed;
+        }
+        return 0;
+      }
+}//end of namespace
