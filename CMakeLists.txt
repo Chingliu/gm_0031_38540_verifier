@@ -12,6 +12,7 @@ SET(SRC_LIST
 	
 	sm2sign.cpp
 	38540.cpp
+	hare_crypto_export.cpp
 )
 
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)

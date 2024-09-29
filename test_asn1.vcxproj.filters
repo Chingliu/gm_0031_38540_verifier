@@ -24,12 +24,18 @@
     <ClCompile Include="sm2sign.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="hare_crypto_export.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="38540.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="sm2sign.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="hare_crypto_export.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

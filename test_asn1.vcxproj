@@ -104,7 +104,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;HARECRYPTO_EXPORT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)include;C:\Program Files\OpenSSL\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -155,11 +155,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="38540.cpp" />
+    <ClCompile Include="hare_crypto_export.cpp" />
     <ClCompile Include="sm2sign.cpp" />
     <ClCompile Include="test_asn1.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="38540.h" />
+    <ClInclude Include="hare_crypto_export.h" />
     <ClInclude Include="sm2sign.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

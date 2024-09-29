@@ -158,7 +158,7 @@ namespace gm {
 
       }
 
-      int C38540::sign_verify(unsigned char * digest, long digest_len) {
+      int C38540::sign_verify(const unsigned char * digest, long digest_len) {
         if (!m_psign)
         {
           return m_error = ErrDataFormat;
@@ -519,7 +519,7 @@ namespace gm {
         ASN1_GENERALIZEDTIME_free(current_asn1_time);
         return iret;
       }
-      int C38540::verify_doc_hash(unsigned char * digest, long digest_len) {
+      int C38540::verify_doc_hash(const unsigned char * digest, long digest_len) {
         //TODO: 
         auto datahash = ASN1_STRING_get0_data(m_psign->tosign->datahash);
         auto datahash_len = ASN1_STRING_length(m_psign->tosign->datahash);
@@ -527,7 +527,7 @@ namespace gm {
         {
           return ErrDocHashCheck;
         }
-        if (0 == memcpy(digest, datahash, digest_len))
+        if (0 == memcmp(digest, datahash, digest_len))
         {
           return 0;
         }
@@ -563,7 +563,7 @@ namespace gm {
 
       }
 
-      int C0031::sign_verify(unsigned char * digest, long digest_len) {
+      int C0031::sign_verify(const unsigned char * digest, long digest_len) {
         m_error = verify_signature_signed_value();
         if (m_error)
         {
@@ -684,7 +684,7 @@ namespace gm {
         return 0;
       }
 
-      int C0031::verify_doc_hash(unsigned char * digest, long digest_len) {
+      int C0031::verify_doc_hash(const unsigned char * digest, long digest_len) {
         //TODO: 
         auto datahash = ASN1_STRING_get0_data(m_psign->tosign->datahash);
         auto datahash_len = ASN1_STRING_length(m_psign->tosign->datahash);
@@ -692,7 +692,7 @@ namespace gm {
         {
           return ErrDocHashCheck;
         }
-        if (0 == memcpy(digest, datahash, digest_len))
+        if (0 == memcmp(digest, datahash, digest_len))
         {
           return 0;
         }

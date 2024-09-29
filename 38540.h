@@ -169,7 +169,7 @@ public:
   CGMVerifier_if() = default;
 public:
   virtual bool data_parsed() = 0;
-  virtual int sign_verify(unsigned char * digest, long digest_len) = 0;
+  virtual int sign_verify(const unsigned char * digest, long digest_len) = 0;
   //type等1，返回签章者证书指针，type=2返回制章者证书指针，指针调用者无需管理
   virtual void * sign_get_cert(unsigned int type) = 0;
   virtual int sign_get_picture() = 0;
@@ -199,7 +199,7 @@ public:
       }
       return false;
     }
-    virtual int sign_verify(unsigned char * digest, long digest_len) final;
+    virtual int sign_verify(const unsigned char * digest, long digest_len) final;
     virtual void * sign_get_cert(unsigned int type) final;
     virtual int sign_get_picture() final;
     virtual int sign_get_seal_name() final;
@@ -209,7 +209,7 @@ public:
     int verify_signer_cert_inside_seal();
     
     int verify_signer_cert_valid();
-    int verify_doc_hash(unsigned char * digest, long digest_len);
+    int verify_doc_hash(const unsigned char * digest, long digest_len);
   private://电子印章验证
     int verify_seal();
     int check_seal_signvalue(SESv4_Seal *eseal);
@@ -242,7 +242,7 @@ public:
       }
       return false;
     }
-    virtual int sign_verify(unsigned char * digest, long digest_len) final;
+    virtual int sign_verify(const unsigned char * digest, long digest_len) final;
     virtual void * sign_get_cert(unsigned int type) final;
     virtual int sign_get_picture() final;
     virtual int sign_get_seal_name() final;
@@ -250,7 +250,7 @@ public:
     int verify_signature_signed_value();
     int verify_signer_cert_inside_seal();
     int verify_signer_cert_valid();
-    int verify_doc_hash(unsigned char * digest, long digest_len);
+    int verify_doc_hash(const unsigned char * digest, long digest_len);
   private:
     int verify_seal();
     int check_seal_signvalue(SESv2_Seal *eseal);
