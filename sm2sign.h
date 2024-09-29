@@ -3,9 +3,9 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include "openssl/crypto.h"
-#include "openssl/types.h"
-#include "openssl/x509.h"
+#include <openssl/crypto.h>
+#include <openssl/types.h>
+#include <openssl/x509.h>
 #include <openssl/ec.h>
 #include <openssl/ecdsa.h>
 #include <openssl/err.h>
@@ -18,7 +18,10 @@ int load_pfx_file(const char *filename, const char *password, EVP_PKEY **pkey, X
 class sm2PrivateKey;
 
 struct EVP_CUNSTOM {
-  EVP_PKEY * pkey = NULL;
+  EVP_PKEY * pkey;
+  EVP_CUNSTOM() :pkey(nullptr) {}
+  EVP_CUNSTOM(EVP_PKEY * _pkey) :pkey(_pkey) {
+  }
   ~EVP_CUNSTOM() {
     if (pkey != NULL) {
       EVP_PKEY_free(pkey);

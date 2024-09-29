@@ -1,8 +1,8 @@
 ﻿#include <memory>
-#include "openssl\asn1.h"
-#include "openssl\asn1t.h"
-#include "openssl\x509.h"
-#include <openssl\safestack.h>
+#include <openssl/asn1.h>
+#include <openssl/asn1t.h>
+#include <openssl/x509.h>
+#include <openssl/safestack.h>
 #include <string>
 DEFINE_STACK_OF(ASN1_OCTET_STRING);
 typedef struct CertDigestObj_t {

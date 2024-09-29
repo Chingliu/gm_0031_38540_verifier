@@ -1,7 +1,7 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS 1
 #include "sm2sign.h"
 #include <stdio.h>
-#include <openssl/applink.c>
+//#include <openssl/applink.c>
 #include <openssl/sm3.h>
 // 读取 .pfx 文件并提取 EVP_PKEY 和 X509 证书
 int load_pfx_file(const char *filename, const char *password, EVP_PKEY **pkey, X509 **cert) {
