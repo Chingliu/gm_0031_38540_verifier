@@ -158,6 +158,28 @@ namespace gm {
 
       }
 
+      char *C38540::sign_digest_method() {
+        if (!m_psign)
+        {
+          return nullptr;
+        }
+        
+        std::string signalgid("");
+        if (m_psign->signalgid) {
+          auto objtxt_len = OBJ_obj2txt(nullptr, 0, m_psign->signalgid, 1);
+          if (objtxt_len <= 0)
+          {
+            return nullptr;
+          }
+          signalgid.resize(objtxt_len + 1);
+          OBJ_obj2txt(&signalgid[0], objtxt_len + 1, m_psign->signalgid, 1);
+        }
+        if (0 == signalgid.compare("1.2.156.10197.1.501"))
+        {
+          return (char *)"1.2.156.10197.1.401";
+        }
+        return nullptr;
+      }
       int C38540::sign_verify(const unsigned char * digest, long digest_len) {
         if (!m_psign)
         {
@@ -561,6 +583,33 @@ namespace gm {
       }
       C0031::~C0031() {
 
+      }
+
+      char *C0031::sign_digest_method() {
+        if (!m_psign)
+        {
+          return nullptr;
+        }
+        auto tbs = m_psign->tosign;
+        if (!tbs)
+        {
+          return nullptr;
+        }
+        std::string signalgid("");
+        if (tbs->signalgid) {
+          auto objtxt_len = OBJ_obj2txt(nullptr, 0, tbs->signalgid, 1);
+          if (objtxt_len <= 0)
+          {
+            return nullptr;
+          }
+          signalgid.resize(objtxt_len + 1);
+          OBJ_obj2txt(&signalgid[0], objtxt_len + 1, tbs->signalgid, 1);
+        }
+        if (0 == signalgid.compare("1.2.156.10197.1.501"))
+        {
+          return (char *)"1.2.156.10197.1.401";
+        }
+        return nullptr;
       }
 
       int C0031::sign_verify(const unsigned char * digest, long digest_len) {

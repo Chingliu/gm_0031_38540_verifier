@@ -170,6 +170,7 @@ public:
 public:
   virtual bool data_parsed() = 0;
   virtual int sign_verify(const unsigned char * digest, long digest_len) = 0;
+  virtual char * sign_digest_method()= 0;
   //type等1，返回签章者证书指针，type=2返回制章者证书指针，指针调用者无需管理
   virtual void * sign_get_cert(unsigned int type) = 0;
   virtual int sign_get_picture() = 0;
@@ -199,6 +200,7 @@ public:
       }
       return false;
     }
+    virtual char *sign_digest_method() final;
     virtual int sign_verify(const unsigned char * digest, long digest_len) final;
     virtual void * sign_get_cert(unsigned int type) final;
     virtual int sign_get_picture() final;
@@ -223,6 +225,7 @@ public:
     std::unique_ptr<X509, decltype(&x509free)> m_signer_cert; //签章者证书
     std::unique_ptr<X509, decltype(&x509free)> m_seal_maker_cert; //制章者证书
 
+
   };
 
   class C0031 :public CGMVerifier_if {
@@ -242,6 +245,7 @@ public:
       }
       return false;
     }
+    virtual char *sign_digest_method() final;
     virtual int sign_verify(const unsigned char * digest, long digest_len) final;
     virtual void * sign_get_cert(unsigned int type) final;
     virtual int sign_get_picture() final;

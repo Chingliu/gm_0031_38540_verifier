@@ -35,6 +35,14 @@ extern "C" {
     }
   }
 
+  HARECRYPTO_API char * hare_crypto_sign_digest_method(const void *psign) {
+    gm::CGMVerifier_if *pverifier = (gm::CGMVerifier_if*)(psign);
+    if (!pverifier)
+    {
+      return nullptr;
+    }
+    return pverifier->sign_digest_method();
+  }
   HARECRYPTO_API int hare_crypto_sign_verify(const void *psign, const unsigned char * digest, long digest_len) {
     gm::CGMVerifier_if *pverifier = (gm::CGMVerifier_if*)(psign);
     if (!pverifier)
